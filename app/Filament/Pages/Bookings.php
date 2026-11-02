@@ -3,7 +3,10 @@
 namespace App\Filament\Pages;
 
 use App\Enums\LedgerType;
-use App\Filament\Resources\Customers\Schemas\CustomerForm;
+use App\Filament\Resources\Bookings\BookingResource;
+use App\Filament\Resources\Bookings\Schemas\BookingForm;
+use App\Filament\Resources\Supplies\Schemas\SupplyForm;
+use App\Filament\Resources\Supplies\SupplyResource;
 use App\Models\Booking;
 use App\Models\Customer;
 use App\Models\Ledger;
@@ -11,14 +14,11 @@ use App\Models\Supply;
 use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
-use Filament\Forms\Components\DatePicker;
-use Filament\Forms\Components\TextInput;
 use Filament\Infolists\Components\RepeatableEntry;
 use Filament\Infolists\Components\RepeatableEntry\TableColumn;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Pages\Page;
 use Filament\Panel;
-use Filament\Schemas\Components\Component;
 use Filament\Schemas\Components\EmbeddedTable;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
@@ -149,7 +149,7 @@ class Bookings extends Page implements HasTable
                         ->modalHeading('Record Supply')
                         ->modalSubmitActionLabel('Save')
                         ->authorize(fn (): bool => (bool) Auth::user()?->can('create', Supply::class))
-                        ->schema($this->movementFormSchema(withAmount: false))
+                        ->schema(SupplyForm::fields())
                         ->fillForm(fn (Customer $record): array => [
                             'customer_id' => $record->getKey(),
                             'date' => now()->toDateString(),
@@ -170,38 +170,9 @@ class Bookings extends Page implements HasTable
             ->modalHeading('Create Booking')
             ->modalSubmitActionLabel('Save')
             ->authorize(fn (): bool => (bool) Auth::user()?->can('create', Booking::class))
-            ->schema($this->movementFormSchema(withAmount: true))
+            ->schema(BookingForm::fields())
             ->action(fn (array $data): Booking => Booking::query()->create($data))
             ->successNotificationTitle('Booking created');
-    }
-
-    /**
-     * Shared form for recording a booking (with amount) or a supply.
-     *
-     * @return array<Component>
-     */
-    protected function movementFormSchema(bool $withAmount): array
-    {
-        return [
-            CustomerForm::select()
-                ->columnSpanFull(),
-            DatePicker::make('date')
-                ->required()
-                ->default(now()),
-            TextInput::make('qty')
-                ->label($withAmount ? 'Qty Booked' : 'Qty Supplied')
-                ->required()
-                ->integer()
-                ->minValue(1)
-                ->suffix('bottles'),
-            TextInput::make('amount')
-                ->label('Amount Paid')
-                ->numeric()
-                ->minValue(0)
-                ->default(0)
-                ->prefix('₦')
-                ->visible($withAmount),
-        ];
     }
 
     protected function viewLedgerAction(): Action
@@ -248,12 +219,19 @@ class Bookings extends Page implements HasTable
                                 TableColumn::make('Type'),
                                 TableColumn::make('Qty')->alignment(Alignment::End),
                                 TableColumn::make('Balance')->alignment(Alignment::End),
+                                TableColumn::make('Edit')->hiddenHeaderLabel(),
                             ])
                             ->schema([
                                 TextEntry::make('date')->date(),
                                 TextEntry::make('type')->badge(),
                                 TextEntry::make('qty')->numeric(),
                                 TextEntry::make('running_balance')->numeric(),
+                                TextEntry::make('edit_url')
+                                    ->hiddenLabel()
+                                    ->formatStateUsing(fn (): string => 'Edit')
+                                    ->url(fn (?string $state): ?string => $state)
+                                    ->color('primary')
+                                    ->icon(Heroicon::OutlinedPencilSquare),
                             ]),
                     ]),
             ]);
@@ -262,13 +240,14 @@ class Bookings extends Page implements HasTable
     /**
      * The customer's ledger in chronological order with a running balance.
      *
-     * @return list<array{date: Carbon, type: LedgerType, qty: int, running_balance: int}>
+     * @return list<array{date: Carbon, type: LedgerType, qty: int, running_balance: int, edit_url: ?string}>
      */
     protected function ledgerEntriesWithRunningBalance(Customer $customer): array
     {
         $runningBalance = 0;
 
         return $customer->ledgers()
+            ->with(['booking', 'supply'])
             ->orderBy('date')
             ->orderBy('created_at')
             ->get()
@@ -280,8 +259,25 @@ class Bookings extends Page implements HasTable
                     'type' => $ledger->type,
                     'qty' => $ledger->qty,
                     'running_balance' => $runningBalance,
+                    'edit_url' => $this->ledgerEntryEditUrl($ledger),
                 ];
             })
             ->all();
+    }
+
+    /**
+     * Link to the booking or supply behind a ledger entry, if the user may edit it.
+     */
+    protected function ledgerEntryEditUrl(Ledger $ledger): ?string
+    {
+        [$resource, $record] = $ledger->type === LedgerType::In
+            ? [BookingResource::class, $ledger->booking]
+            : [SupplyResource::class, $ledger->supply];
+
+        if (! $record || ! Auth::user()?->can('update', $record)) {
+            return null;
+        }
+
+        return $resource::getUrl('edit', ['record' => $record]);
     }
 }
