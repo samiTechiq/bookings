@@ -4,11 +4,11 @@ Quick guide for an Ubuntu/Debian VPS that already has PHP 8.3, Node.js/npm, Ngin
 
 Replace these placeholders throughout:
 
-| Placeholder | Example |
-|---|---|
-| `bookings.example.com` | your domain (DNS A record must point at the VPS) |
-| `git@github.com:you/natu-bookings.git` | your private repository |
-| `CHANGE_ME_STRONG_PASSWORD` | a strong password for the MySQL app user |
+| Placeholder                            | Example                                          |
+| -------------------------------------- | ------------------------------------------------ |
+| `bookings.example.com`                 | your domain (DNS A record must point at the VPS) |
+| `git@github.com:you/natu-bookings.git` | your private repository                          |
+| `CHANGE_ME_STRONG_PASSWORD`            | a strong password for the MySQL app user         |
 
 App directory: `/var/www/natu-bookings`
 
@@ -65,11 +65,7 @@ sudo mysql
 ```
 
 ```sql
-CREATE DATABASE natu_bookings CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER 'natu'@'localhost' IDENTIFIED BY 'CHANGE_ME_STRONG_PASSWORD';
-GRANT ALL PRIVILEGES ON natu_bookings.* TO 'natu'@'localhost';
-FLUSH PRIVILEGES;
-EXIT;
+
 ```
 
 Check the login works: `mysql -u natu -p natu_bookings -e "SELECT 1;"`
@@ -278,13 +274,13 @@ Copy backups off the server periodically.
 
 ## Troubleshooting
 
-| Symptom | Fix |
-|---|---|
-| 500 error / blank page | `tail -n 50 storage/logs/laravel.log` |
-| `SQLSTATE[HY000] [1045] Access denied` | check `DB_USERNAME`/`DB_PASSWORD` in `.env`, then `php artisan optimize` |
-| `SQLSTATE[HY000] [2002] Connection refused` | MySQL isn't running: `sudo systemctl status mysql` |
-| "Permission denied" writing logs/cache | re-run the `chown`/`chmod` commands in step 5 |
-| Unstyled admin panel | `php artisan filament:assets && php artisan optimize` |
-| Config/route changes not applied | `php artisan optimize:clear && php artisan optimize` |
-| 403 on login for a user | the user has no role — assign one in **Users** |
-| "Install app" not offered | site must be on HTTPS (step 7); hard-refresh once |
+| Symptom                                     | Fix                                                                      |
+| ------------------------------------------- | ------------------------------------------------------------------------ |
+| 500 error / blank page                      | `tail -n 50 storage/logs/laravel.log`                                    |
+| `SQLSTATE[HY000] [1045] Access denied`      | check `DB_USERNAME`/`DB_PASSWORD` in `.env`, then `php artisan optimize` |
+| `SQLSTATE[HY000] [2002] Connection refused` | MySQL isn't running: `sudo systemctl status mysql`                       |
+| "Permission denied" writing logs/cache      | re-run the `chown`/`chmod` commands in step 5                            |
+| Unstyled admin panel                        | `php artisan filament:assets && php artisan optimize`                    |
+| Config/route changes not applied            | `php artisan optimize:clear && php artisan optimize`                     |
+| 403 on login for a user                     | the user has no role — assign one in **Users**                           |
+| "Install app" not offered                   | site must be on HTTPS (step 7); hard-refresh once                        |
